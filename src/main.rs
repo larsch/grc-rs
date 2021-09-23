@@ -1,3 +1,4 @@
+use debug_print::debug_println;
 use itertools::Itertools;
 use regex::Regex;
 use std::fs::File;
@@ -5,7 +6,15 @@ use std::io::{BufRead, Lines};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
+use lazy_static::lazy_static;
 use tokio::process::Command;
+
+fn parse_python_regex(text: &str) -> Result<Regex, regex::Error> {
+    lazy_static! {
+        static ref REPL: Regex = regex::Regex::new("\\\\([/:!=_])").unwrap();
+    }
+    return Regex::new(&REPL.replacen(text, 0, "$1"));
+}
 
 struct ConfigReader<A> {
     inner: Lines<A>,
@@ -21,7 +30,6 @@ impl<A: BufRead> ConfigReader<A> {
         for line in &mut self.inner {
             match line {
                 Ok(line2) => {
-                    let line2 = line2.replace("\\/", "/");
                     if !re.is_match(&line2) {
                         return Some(line2);
                     }
@@ -39,7 +47,7 @@ impl<A: BufRead> Iterator for ConfigReader<A> {
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(regexp) = self.next_content_line() {
             if let Some(filename) = self.next_content_line() {
-                if let Ok(re) = Regex::new(&regexp) {
+                if let Ok(re) = parse_python_regex(&regexp) {
                     Some((re, filename))
                 } else {
                     self.next()
@@ -127,6 +135,7 @@ fn style_from_str(text: &str) -> Result<console::Style, ()> {
             "bright_magenta" => Ok(style.bright().magenta()),
             "bright_cyan" => Ok(style.bright().cyan()),
             "bright_white" => Ok(style.bright().white()),
+            "blink" => Ok(style.blink()),
             _ => {
                 println!("unhandled style: {}", word);
                 Err(())
@@ -153,9 +162,13 @@ impl<A: BufRead> Iterator for GrcatConfigReader<A> {
                 let key = cap.get(1).unwrap().as_str();
                 let value = cap.get(2).unwrap().as_str();
                 if key == "regexp" {
-                    let value = value.replace("\\/", "/");
-                    if let Ok(re) = Regex::new(&value) {
-                        regex = Some(re);
+                    match parse_python_regex(&value) {
+                        Ok(re) => {
+                            regex = Some(re);
+                        }
+                        Err(exc) => {
+                            debug_println!("Failed regexp: {:?}", exc);
+                        }
                     }
                 }
                 if key == "colours" {
@@ -168,10 +181,14 @@ impl<A: BufRead> Iterator for GrcatConfigReader<A> {
                     break;
                 }
             }
-            regex.map(|regex| GrcatConfigEntry {
-                regex,
-                colors: colors.unwrap_or_default(),
-            })
+            if let Some(regex) = regex {
+                Some(GrcatConfigEntry {
+                    regex,
+                    colors: colors.unwrap_or_default(),
+                })
+            } else {
+                self.next()
+            }
         } else {
             None
         }

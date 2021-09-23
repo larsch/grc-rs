@@ -10,3 +10,5 @@ tokio = { version = "*", features = ["rt", "macros", "process", "io-util"] }
 regex = "*"
 console = "*"
 itertools = "*"
+lazy_static = "*"
+debug_print = "*"
