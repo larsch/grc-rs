@@ -9,3 +9,4 @@ edition = "2018"
 tokio = { version = "*", features = ["rt", "macros", "process", "io-util"] }
 regex = "*"
 console = "*"
+itertools = "*"
