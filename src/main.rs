@@ -1,6 +1,5 @@
 use itertools::Itertools;
 use regex::Regex;
-use std::convert::TryFrom;
 use std::fs::File;
 use std::io::{BufRead, Lines};
 use std::process::Stdio;
@@ -19,7 +18,7 @@ impl<A: BufRead> ConfigReader<A> {
 
     fn next_content_line(&mut self) -> Option<String> {
         let re = Regex::new("^[- \t]*(#|$)").unwrap();
-        while let Some(line) = self.inner.next() {
+        for line in &mut self.inner {
             match line {
                 Ok(line2) => {
                     let line2 = line2.replace("\\/", "/");
@@ -65,14 +64,11 @@ impl<A: BufRead> GrcatConfigReader<A> {
 
     fn next_alphanumeric(&mut self) -> Option<String> {
         let alphanumeric = Regex::new("^[a-zA-Z0-9]").unwrap();
-        while let Some(line) = self.inner.next() {
-            match line {
-                Ok(line) => {
-                    if alphanumeric.is_match(&line) {
-                        return Some(line);
-                    }
+        for line in &mut self.inner {
+            if let Ok(line) = line {
+                if alphanumeric.is_match(&line) {
+                    return Some(line);
                 }
-                Err(_) => (),
             }
         }
         None
@@ -81,7 +77,6 @@ impl<A: BufRead> GrcatConfigReader<A> {
     fn following(&mut self) -> Option<String> {
         let alphanumeric = Regex::new("^[a-zA-Z0-9]").unwrap();
         if let Some(Ok(line)) = self.inner.next() {
-            println!("line: {}", line);
             if alphanumeric.is_match(&line) {
                 Some(line)
             } else {
@@ -93,16 +88,6 @@ impl<A: BufRead> GrcatConfigReader<A> {
     }
 }
 
-struct GrcatConfigEntryReader<'a, A> {
-    inner: &'a GrcatConfigReader<A>,
-}
-
-impl<'a, A: BufRead> GrcatConfigEntryReader<'a, A> {
-    fn new(inner: &'a GrcatConfigReader<A>) -> Self {
-        GrcatConfigEntryReader { inner }
-    }
-}
-
 #[derive(Debug)]
 struct GrcatConfigEntry {
     regex: regex::Regex,
@@ -110,8 +95,7 @@ struct GrcatConfigEntry {
 }
 
 fn style_from_str(text: &str) -> Result<console::Style, ()> {
-    Ok(text
-        .split(" ")
+    text.split(' ')
         .try_fold(console::Style::new(), |style, word| match word {
             "" => Ok(style),
             "unchanged" => Ok(style),
@@ -134,30 +118,24 @@ fn style_from_str(text: &str) -> Result<console::Style, ()> {
             "on_cyan" => Ok(style.on_cyan()),
             "on_white" => Ok(style.on_white()),
             "bold" => Ok(style.bold()),
+            "dark" => Ok(style),
+            "bright_black" => Ok(style.bright().black()),
+            "bright_red" => Ok(style.bright().red()),
+            "bright_green" => Ok(style.bright().green()),
+            "bright_yellow" => Ok(style.bright().yellow()),
+            "bright_blue" => Ok(style.bright().blue()),
+            "bright_magenta" => Ok(style.bright().magenta()),
+            "bright_cyan" => Ok(style.bright().cyan()),
+            "bright_white" => Ok(style.bright().white()),
             _ => {
                 println!("unhandled style: {}", word);
                 Err(())
             }
-        })?)
-}
-
-fn color_from_str(text: &str) -> Result<console::Color, ()> {
-    match text {
-        "default" => Ok(console::Color::White),
-        "green" => Ok(console::Color::Green),
-        "yellow" => Ok(console::Color::Yellow),
-        "blue" => Ok(console::Color::Blue),
-        "magenta" => Ok(console::Color::Magenta),
-        "cyan" => Ok(console::Color::Cyan),
-        _ => {
-            println!("failed to recognize {}", text);
-            Err(())
-        }
-    }
+        })
 }
 
 fn try_from_str(text: &str) -> Result<Vec<console::Style>, ()> {
-    text.split(",").map(|e| Ok(style_from_str(e)?)).collect()
+    text.split(',').map(|e| Ok(style_from_str(e)?)).collect()
 }
 
 impl<A: BufRead> Iterator for GrcatConfigReader<A> {
@@ -165,7 +143,7 @@ impl<A: BufRead> Iterator for GrcatConfigReader<A> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let re = Regex::new("^([a-z_]+)\\s*=\\s*(.*)$").unwrap();
-        let mut ln: String = String::new();
+        let mut ln: String;
         if let Some(line) = self.next_alphanumeric() {
             ln = line;
             let mut regex: Option<Regex> = None;
@@ -174,7 +152,6 @@ impl<A: BufRead> Iterator for GrcatConfigReader<A> {
                 let cap = re.captures(&ln).unwrap();
                 let key = cap.get(1).unwrap().as_str();
                 let value = cap.get(2).unwrap().as_str();
-                println!("{:?} -> {:?}", key, value);
                 if key == "regexp" {
                     let value = value.replace("\\/", "/");
                     if let Ok(re) = Regex::new(&value) {
@@ -182,27 +159,19 @@ impl<A: BufRead> Iterator for GrcatConfigReader<A> {
                     }
                 }
                 if key == "colours" {
-                    println!("found colors {}", value);
                     colors = Some(try_from_str(value).unwrap());
                 }
 
                 if let Some(nline) = self.following() {
                     ln = nline;
-                    println!("nextline: {}", ln);
                 } else {
-                    println!("no more lines");
                     break;
                 }
             }
-            if let Some(regex) = regex {
-                println!("{:?}", colors);
-                Some(GrcatConfigEntry {
-                    regex,
-                    colors: colors.unwrap_or(Vec::default()),
-                })
-            } else {
-                None
-            }
+            regex.map(|regex| GrcatConfigEntry {
+                regex,
+                colors: colors.unwrap_or_default(),
+            })
         } else {
             None
         }
@@ -214,34 +183,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args();
     args.next();
     let pseudo_command = args.join(" ");
-    println!("cmd: {}", pseudo_command);
 
-    println!("Loading config");
+    if pseudo_command.is_empty() {
+        println!("Generic Colouriser (RS)");
+        println!("grc-rs command [args]");
+        return Ok(());
+    }
+
     let f = File::open("/etc/grc.conf")?;
     let br = std::io::BufReader::new(f);
     let mut cr = ConfigReader::new(br.lines());
-    let command = cr.find(|(re, config)| re.is_match(&pseudo_command));
-    println!("Looking for command");
+    let command = cr.find(|(re, _config)| re.is_match(&pseudo_command));
     let rules: Vec<GrcatConfigEntry> = if let Some((_, config)) = command {
-        println!("found match for {}", config);
-
         let filename = format!("/usr/share/grc/{}", config);
-        println!("reading {}", filename);
         let f2 = File::open(filename)?;
         let br = std::io::BufReader::new(f2);
-        println!("Loading config");
         let cr = GrcatConfigReader::new(br.lines());
         cr.collect()
     } else {
         Vec::default()
     };
-    // for (regex, config) in cr {
-    //     if regex.is_match(&pseudo_command) {
-    //         println!("found match for {}", config);
-    //     }
-    // }
 
-    let mut cmd = Command::new("mount");
+    let mut args = std::env::args();
+    args.next();
+    let mut cmd = Command::new(args.next().unwrap());
+    cmd.args(args);
     cmd.stdout(Stdio::piped());
     let mut child = cmd.spawn().expect("failed to spawn comamnd");
     let stdout = child
@@ -257,51 +223,62 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("child status was: {}", status);
     });
 
-    let re = regex::Regex::new("^(.*) on (.*) type (.*) \\((.*)\\)")?;
     while let Some(line) = reader.next_line().await? {
-        let mut offset = 0;
-        //while offset < line.len() {
-        //    let entry = &rules.find{ |&r| r.
-
-        for entry in &rules {
-        for m in entry.regex.captures_iter(&line) {
-            // let colors = [
-            //     console::Color::Black,
-            //     console::Color::Green,
-            //     console::Color::Yellow,
-            //     console::Color::Blue,
-            //     console::Color::Magenta,
-            // ];
-
-            for (index, cap) in m.iter().enumerate() {
-                if index == 0 {
-                    continue;
-                }
-                if let Some(cap) = cap {
-                    if cap.start() > offset {
-                        print!("{}", &line[offset..cap.start()]);
+        let mut style_ranges: Vec<(usize, usize, &console::Style)> = Vec::new();
+        for rule in &rules {
+            let mut offset = 0;
+            while offset < line.len() {
+                let mut locs = rule.regex.capture_locations();
+                if let Some(maybe_match) = rule.regex.captures_read_at(&mut locs, &line, offset) {
+                    for i in 0..locs.len() {
+                        if let Some((start, end)) = locs.get(i) {
+                            if i < rule.colors.len() {
+                                let style = &rule.colors[i];
+                                let range = (start, end, style);
+                                style_ranges.push(range);
+                            }
+                        }
                     }
-
-                    print!(
-                        "{}",
-                        entry.colors[index].apply_to(
-                            // console::style(
-                                &line[cap.start()..cap.end()]) // 
-                        // .apply(entry.colors[index])
-                        // fg(colors[index])
-                    );
-                    offset = cap.end();
+                    if maybe_match.end() > maybe_match.start() {
+                        offset = maybe_match.end();
+                    } else {
+                        offset = maybe_match.end() + 1; // skip a char to prevent infinite loop
+                    }
+                } else {
+                    break; // break on no more matches
                 }
             }
-            if offset < line.len() {
-                print!("!{}", &line[offset..line.len()]);
+        }
+        let mut char_styles: Vec<&console::Style> = Vec::with_capacity(line.len());
+        let default_style = console::Style::new();
+        for _ in 0..line.len() {
+            char_styles.push(&default_style);
+        }
+        for (start, end, style) in style_ranges {
+            for item in char_styles.iter_mut().take(end).skip(start) {
+                *item = style;
             }
-            println!("");
+            // for i in start..end {
+            //     char_styles[i] = style;
+            // }
         }
+
+        let mut prev_style = &default_style;
+        let mut offset = 0;
+        for i in 0..line.len() {
+            let this_style = char_styles[i];
+            if this_style != prev_style {
+                if i > 0 {
+                    print!("{}", prev_style.apply_to(&line[offset..i]));
+                }
+                prev_style = this_style;
+                offset = i;
+            }
         }
-        if offset == 0 {
-            println!("> {}", line);
+        if offset < line.len() {
+            print!("{}", prev_style.apply_to(&line[offset..line.len()]));
         }
+        println!();
     }
 
     Ok(())
