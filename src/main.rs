@@ -253,7 +253,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stdout = child
         .stdout
         .take()
-        .expect("cihld did not have a handle to stdout");
+        .expect("child did not have a handle to stdout");
     let mut reader = BufReader::new(stdout).lines();
     tokio::spawn(async move {
         let status = child
