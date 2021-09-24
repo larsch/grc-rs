@@ -9,6 +9,10 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use lazy_static::lazy_static;
 use tokio::process::Command;
 
+/// Attempt to parse a Python regexp (from grc/grcat configuration) into a regex::Regex. These two
+/// a not compatible. Primarly, look-ahead/look-behind, which are used in grc/grcat default
+/// configuration files are not supported by the 'regex' create. Also, some characters are
+/// unecessarily escaped. The kludge here is to remove those escapes. Probably not very robust.
 fn parse_python_regex(text: &str) -> Result<Regex, regex::Error> {
     lazy_static! {
         static ref REPL: Regex = regex::Regex::new("\\\\([/:!=_])").unwrap();
@@ -16,15 +20,18 @@ fn parse_python_regex(text: &str) -> Result<Regex, regex::Error> {
     return Regex::new(&REPL.replacen(text, 0, "$1"));
 }
 
+/// 'grc' configuration reader
 struct ConfigReader<A> {
     inner: Lines<A>,
 }
 
 impl<A: BufRead> ConfigReader<A> {
+    /// Construct a new grcat ConfigReader
     fn new(inner: Lines<A>) -> Self {
         ConfigReader { inner }
     }
 
+    /// Read the next line with some actual content
     fn next_content_line(&mut self) -> Option<String> {
         let re = Regex::new("^[- \t]*(#|$)").unwrap();
         for line in &mut self.inner {
@@ -41,6 +48,8 @@ impl<A: BufRead> ConfigReader<A> {
     }
 }
 
+/// Iterator for ConfigReader that yield the next entry (regex, config) where 'regex' is the
+/// command line regexp and 'config' is the file name of the 'grcat' configuration file.
 impl<A: BufRead> Iterator for ConfigReader<A> {
     type Item = (regex::Regex, String);
 
@@ -61,15 +70,18 @@ impl<A: BufRead> Iterator for ConfigReader<A> {
     }
 }
 
+/// 'grcat' configuration reader
 struct GrcatConfigReader<A> {
     inner: Lines<A>,
 }
 
 impl<A: BufRead> GrcatConfigReader<A> {
+    /// Construct a new grcat configuration reader
     fn new(inner: Lines<A>) -> Self {
         GrcatConfigReader { inner }
     }
 
+    /// Get the next alpha-numeric line (any non-alphanumeric line are ignored in grcat).
     fn next_alphanumeric(&mut self) -> Option<String> {
         let alphanumeric = Regex::new("^[a-zA-Z0-9]").unwrap();
         for line in &mut self.inner {
@@ -82,6 +94,8 @@ impl<A: BufRead> GrcatConfigReader<A> {
         None
     }
 
+    /// Get the following alpha-numeric line, or None if next line is to be ignored and signifies
+    /// the end of the configuration entry.
     fn following(&mut self) -> Option<String> {
         let alphanumeric = Regex::new("^[a-zA-Z0-9]").unwrap();
         if let Some(Ok(line)) = self.inner.next() {
@@ -96,12 +110,67 @@ impl<A: BufRead> GrcatConfigReader<A> {
     }
 }
 
+/// A 'grcat' configuration entry consisting of a matching regexp and set of optional options. See
+/// 'man grcat' for details.
 #[derive(Debug)]
 struct GrcatConfigEntry {
     regex: regex::Regex,
     colors: Vec<console::Style>,
 }
 
+impl<A: BufRead> Iterator for GrcatConfigReader<A> {
+    type Item = GrcatConfigEntry;
+
+    /// Advances the iterator and returns the next GrcatConfigEntry. The definition of the
+    /// configuration file format in 'man grcat' says that consecutive lines starting with an
+    /// alphanumeric character are entries and anything else is ignored.
+    fn next(&mut self) -> Option<Self::Item> {
+        let re = Regex::new("^([a-z_]+)\\s*=\\s*(.*)$").unwrap();
+        let mut ln: String;
+        while let Some(line) = self.next_alphanumeric() {
+            ln = line;
+            let mut regex: Option<Regex> = None;
+            let mut colors: Option<Vec<console::Style>> = None;
+
+            // Loop over all consecutive alpha-numeric lines
+            loop {
+                let cap = re.captures(&ln).unwrap();
+                let key = cap.get(1).unwrap().as_str();
+                let value = cap.get(2).unwrap().as_str();
+                match key {
+                    "regexp" => match parse_python_regex(&value) {
+                        Ok(re) => {
+                            regex = Some(re);
+                        }
+                        Err(exc) => {
+                            debug_println!("Failed regexp: {:?}", exc);
+                        }
+                    },
+                    "colours" => {
+                        colors = Some(styles_from_str(value).unwrap());
+                    },
+                    _ => () // Ignore unsupported options
+                };
+
+                if let Some(nline) = self.following() {
+                    ln = nline;
+                } else {
+                    break;
+                }
+            }
+            if let Some(regex) = regex {
+                return Some(GrcatConfigEntry {
+                    regex,
+                    colors: colors.unwrap_or_default(),
+                });
+            }
+            // Section did not have a 'regexp' entry. Ignore and continue to next.
+        }
+        None
+    }
+}
+
+/// Convert a grcat 'colours' option string element into a corresponding 'console::Style' value.
 fn style_from_str(text: &str) -> Result<console::Style, ()> {
     text.split(' ')
         .try_fold(console::Style::new(), |style, word| match word {
@@ -143,58 +212,12 @@ fn style_from_str(text: &str) -> Result<console::Style, ()> {
         })
 }
 
-fn try_from_str(text: &str) -> Result<Vec<console::Style>, ()> {
+/// Convert a grcat 'colours' comma-separated option string into a vector of styles.
+fn styles_from_str(text: &str) -> Result<Vec<console::Style>, ()> {
     text.split(',').map(|e| Ok(style_from_str(e)?)).collect()
 }
 
-impl<A: BufRead> Iterator for GrcatConfigReader<A> {
-    type Item = GrcatConfigEntry;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let re = Regex::new("^([a-z_]+)\\s*=\\s*(.*)$").unwrap();
-        let mut ln: String;
-        if let Some(line) = self.next_alphanumeric() {
-            ln = line;
-            let mut regex: Option<Regex> = None;
-            let mut colors: Option<Vec<console::Style>> = None;
-            loop {
-                let cap = re.captures(&ln).unwrap();
-                let key = cap.get(1).unwrap().as_str();
-                let value = cap.get(2).unwrap().as_str();
-                if key == "regexp" {
-                    match parse_python_regex(&value) {
-                        Ok(re) => {
-                            regex = Some(re);
-                        }
-                        Err(exc) => {
-                            debug_println!("Failed regexp: {:?}", exc);
-                        }
-                    }
-                }
-                if key == "colours" {
-                    colors = Some(try_from_str(value).unwrap());
-                }
-
-                if let Some(nline) = self.following() {
-                    ln = nline;
-                } else {
-                    break;
-                }
-            }
-            if let Some(regex) = regex {
-                Some(GrcatConfigEntry {
-                    regex,
-                    colors: colors.unwrap_or_default(),
-                })
-            } else {
-                self.next()
-            }
-        } else {
-            None
-        }
-    }
-}
-
+// Main
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args();
