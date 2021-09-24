@@ -15,7 +15,7 @@ use tokio::process::Command;
 /// unecessarily escaped. The kludge here is to remove those escapes. Probably not very robust.
 fn parse_python_regex(text: &str) -> Result<Regex, regex::Error> {
     lazy_static! {
-        static ref REPL: Regex = regex::Regex::new("\\\\([/:!=_])").unwrap();
+        static ref REPL: Regex = regex::Regex::new("\\\\([/:!=_`@\"])").unwrap();
     }
     return Regex::new(&REPL.replacen(text, 0, "$1"));
 }
