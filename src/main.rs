@@ -1,5 +1,4 @@
 use debug_print::debug_println;
-use itertools::Itertools;
 use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Lines};
@@ -217,9 +216,16 @@ fn styles_from_str(text: &str) -> Result<Vec<console::Style>, ()> {
 
 // Main
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args = std::env::args();
-    args.next();
-    let pseudo_command = args.join(" ");
+    let mut command: Vec<String> = Vec::new();
+    {
+        let mut ap = argparse::ArgumentParser::new();
+        ap.set_description("Generic colouriser");
+        ap.refer(&mut command)
+            .add_argument("command", argparse::Collect, "Command to run");
+        ap.parse_args_or_exit();
+    }
+
+    let pseudo_command = command.join(" ");
 
     if pseudo_command.is_empty() {
         println!("Generic Colouriser (RS)");
