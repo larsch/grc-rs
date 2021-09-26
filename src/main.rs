@@ -238,6 +238,9 @@ impl FromStr for ColourMode {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut command: Vec<String> = Vec::new();
     let mut colour = ColourMode::Auto;
+    let mut show_all_aliases = false;
+    let mut except_aliases: Vec<String> = Vec::new();
+    let mut show_aliases = false;
     {
         let mut ap = argparse::ArgumentParser::new();
         ap.set_description("Generic colouriser");
@@ -252,7 +255,111 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             argparse::Collect,
             "Command to run",
         );
+        ap.refer(&mut show_aliases).add_option(
+            &["--aliases"],
+            argparse::StoreTrue,
+            "Output shell aliases for available binaries",
+        );
+        ap.refer(&mut show_all_aliases).add_option(
+            &["--all-aliases"],
+            argparse::StoreTrue,
+            "Output all shell aliases",
+        );
+        ap.refer(&mut except_aliases).add_option(
+            &["--except"],
+            argparse::Collect,
+            "Exclude alias from generated list (multiple or comma-separated allowed)",
+        );
         ap.parse_args_or_exit();
+    }
+
+    let except_aliases: Vec<&str> = except_aliases
+        .iter()
+        .map(|s| s.split(','))
+        .flatten()
+        .collect();
+
+    if show_aliases || show_all_aliases {
+        let grc = std::env::current_exe().unwrap();
+        let grc = grc.display();
+
+        // Curated list of command that work well
+        for cmd in &[
+            "ant",
+            "blkid",
+            "common",
+            "curl",
+            "cvs",
+            "df",
+            "diff",
+            "dig",
+            "dnf",
+            "docker",
+            "du",
+            "dummy",
+            "env",
+            "esperanto",
+            "fdisk",
+            "findmnt",
+            "free",
+            "gcc",
+            "getfacl",
+            "getsebool",
+            "id",
+            "ifconfig",
+            "ip",
+            "iptables",
+            "irclog",
+            "iwconfig",
+            "jobs",
+            "kubectl",
+            "last",
+            "ldap",
+            "log",
+            "lolcat",
+            "lsattr",
+            "lsblk",
+            "lsmod",
+            "lsof",
+            "lspci",
+            "mount",
+            "mvn",
+            "netstat",
+            "nmap",
+            "ntpdate",
+            "php",
+            "ping",
+            "ping2",
+            "proftpd",
+            "ps",
+            "pv",
+            "semanage",
+            "sensors",
+            "showmount",
+            "sockstat",
+            "sql",
+            "ss",
+            "stat",
+            "sysctl",
+            "systemctl",
+            "tcpdump",
+            "traceroute",
+            "tune2fs",
+            "ulimit",
+            "uptime",
+            "vmstat",
+            "wdiff",
+            "whois",
+            "yaml",
+            "docker",
+            "go",
+            "iostat",
+        ] {
+            if !except_aliases.contains(cmd) && (show_all_aliases || which::which(cmd).is_ok()) {
+                println!("alias {}='{} {}';", cmd, grc, cmd);
+            }
+        }
+        std::process::exit(0);
     }
 
     if command.is_empty() {
