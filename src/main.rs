@@ -2,12 +2,10 @@ use debug_print::debug_println;
 use itertools::Itertools;
 use regex::Regex;
 use std::fs::File;
-use std::io::{BufRead, Lines};
-use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use std::io::{BufRead, BufReader, Lines};
+use std::process::{Command, Stdio};
 
 use lazy_static::lazy_static;
-use tokio::process::Command;
 
 /// Attempt to parse a Python regexp (from grc/grcat configuration) into a regex::Regex. These two
 /// a not compatible. Primarly, look-ahead/look-behind, which are used in grc/grcat default
@@ -138,7 +136,7 @@ impl<A: BufRead> Iterator for GrcatConfigReader<A> {
                 let key = cap.get(1).unwrap().as_str();
                 let value = cap.get(2).unwrap().as_str();
                 match key {
-                    "regexp" => match parse_python_regex(&value) {
+                    "regexp" => match parse_python_regex(value) {
                         Ok(re) => {
                             regex = Some(re);
                         }
@@ -148,8 +146,8 @@ impl<A: BufRead> Iterator for GrcatConfigReader<A> {
                     },
                     "colours" => {
                         colors = Some(styles_from_str(value).unwrap());
-                    },
-                    _ => () // Ignore unsupported options
+                    }
+                    _ => (), // Ignore unsupported options
                 };
 
                 if let Some(nline) = self.following() {
@@ -218,8 +216,7 @@ fn styles_from_str(text: &str) -> Result<Vec<console::Style>, ()> {
 }
 
 // Main
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args();
     args.next();
     let pseudo_command = args.join(" ");
@@ -254,16 +251,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .stdout
         .take()
         .expect("child did not have a handle to stdout");
-    let mut reader = BufReader::new(stdout).lines();
-    tokio::spawn(async move {
-        let status = child
-            .wait()
-            .await
-            .expect("child process encountered an error");
-        println!("child status was: {}", status);
-    });
+    let reader = BufReader::new(stdout).lines();
+    // tokio::spawn(async move {
+    //     let status = child
+    //         .wait()
+    //         .await
+    //         .expect("child process encountered an error");
+    //     println!("child status was: {}", status);
+    // });
 
-    while let Some(line) = reader.next_line().await? {
+    for line in reader {
+        let line = line?;
         let mut style_ranges: Vec<(usize, usize, &console::Style)> = Vec::new();
         for rule in &rules {
             let mut offset = 0;
