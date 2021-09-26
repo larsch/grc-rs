@@ -3,6 +3,7 @@ use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Lines};
 use std::process::{Command, Stdio};
+use std::str::FromStr;
 
 use lazy_static::lazy_static;
 
@@ -214,30 +215,66 @@ fn styles_from_str(text: &str) -> Result<Vec<console::Style>, ()> {
     text.split(',').map(|e| Ok(style_from_str(e)?)).collect()
 }
 
+enum ColourMode {
+    On,
+    Off,
+    Auto,
+}
+
+impl FromStr for ColourMode {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "on" => Ok(ColourMode::On),
+            "off" => Ok(ColourMode::Off),
+            "auto" => Ok(ColourMode::Auto),
+            _ => Err(()),
+        }
+    }
+}
+
 // Main
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut command: Vec<String> = Vec::new();
+    let mut colour = ColourMode::Auto;
     {
         let mut ap = argparse::ArgumentParser::new();
         ap.set_description("Generic colouriser");
-        ap.refer(&mut command)
-            .add_argument("command", argparse::Collect, "Command to run");
+        ap.stop_on_first_argument(true);
+        ap.refer(&mut colour).add_option(
+            &["--colour"],
+            argparse::Store,
+            "Override color output (on, off, auto)",
+        );
+        ap.refer(&mut command).required().add_argument(
+            "command",
+            argparse::Collect,
+            "Command to run",
+        );
         ap.parse_args_or_exit();
+    }
+
+    if command.is_empty() {
+        eprintln!("No command specified.");
+        std::process::exit(1);
+    }
+
+    match colour {
+        ColourMode::On => console::set_colors_enabled(true),
+        ColourMode::Off => console::set_colors_enabled(false),
+        _ => (),
     }
 
     let pseudo_command = command.join(" ");
 
-    if pseudo_command.is_empty() {
-        println!("Generic Colouriser (RS)");
-        println!("grc-rs command [args]");
-        return Ok(());
-    }
+    if pseudo_command.is_empty() {}
 
     let f = File::open("/etc/grc.conf")?;
     let br = std::io::BufReader::new(f);
     let mut cr = ConfigReader::new(br.lines());
-    let command = cr.find(|(re, _config)| re.is_match(&pseudo_command));
-    let rules: Vec<GrcatConfigEntry> = if let Some((_, config)) = command {
+    let config = cr.find(|(re, _config)| re.is_match(&pseudo_command));
+    let rules: Vec<GrcatConfigEntry> = if let Some((_, config)) = config {
         let filename = format!("/usr/share/grc/{}", config);
         let f2 = File::open(filename)?;
         let br = std::io::BufReader::new(f2);
@@ -247,8 +284,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Vec::default()
     };
 
-    let mut args = std::env::args();
-    args.next();
+    let mut args = command.iter();
     let mut cmd = Command::new(args.next().unwrap());
     cmd.args(args);
     cmd.stdout(Stdio::piped());
