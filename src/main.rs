@@ -36,7 +36,7 @@ impl<A: BufRead> ConfigReader<A> {
             match line {
                 Ok(line2) => {
                     if !re.is_match(&line2) {
-                        return Some(line2);
+                        return Some(line2.trim().to_string());
                     }
                 }
                 Err(_) => break,
@@ -85,7 +85,7 @@ impl<A: BufRead> GrcatConfigReader<A> {
         for line in &mut self.inner {
             if let Ok(line) = line {
                 if alphanumeric.is_match(&line) {
-                    return Some(line);
+                    return Some(line.trim().to_string());
                 }
             }
         }
@@ -400,14 +400,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .stdout
         .take()
         .expect("child did not have a handle to stdout");
+
     let reader = BufReader::new(stdout).lines();
-    // tokio::spawn(async move {
-    //     let status = child
-    //         .wait()
-    //         .await
-    //         .expect("child process encountered an error");
-    //     println!("child status was: {}", status);
-    // });
 
     for line in reader {
         let line = line?;
@@ -445,9 +439,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             for item in char_styles.iter_mut().take(end).skip(start) {
                 *item = style;
             }
-            // for i in start..end {
-            //     char_styles[i] = style;
-            // }
         }
 
         let mut prev_style = &default_style;
