@@ -2,6 +2,10 @@
 name = "grc-rs"
 version = "0.1.0"
 edition = "2018"
+license = "MIT"
+description = "Generic Colouriser ported to Rust"
+repository = "https://github.com/larsch/grc-rs"
+homepage = "https://github.com/larsch/grc-rs"
 
 [dependencies]
 regex = "*"
