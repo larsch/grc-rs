@@ -403,10 +403,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let reader = BufReader::new(stdout).lines();
 
+    colourise(reader, &rules)?;
+
+    Ok(())
+}
+
+/// Read lines from 'reader' and apply colouring. 
+///
+/// The approach taken here is currently the same as in 'grcat'. Keep an array
+/// of styles for each character and paint each match until all regexp have been
+/// processed. Then find ranges of same style in this array and wrap the
+/// substrings in console escape codes.
+fn colourise<A: BufRead>(
+    reader: Lines<A>,
+    rules: &[GrcatConfigEntry],
+) -> Result<(), Box<dyn std::error::Error>> {
     for line in reader {
         let line = line?;
         let mut style_ranges: Vec<(usize, usize, &console::Style)> = Vec::new();
-        for rule in &rules {
+        for rule in rules {
             let mut offset = 0;
             while offset < line.len() {
                 let mut locs = rule.regex.capture_locations();
@@ -458,6 +473,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         println!();
     }
-
     Ok(())
 }
