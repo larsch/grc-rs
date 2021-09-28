@@ -29,5 +29,5 @@ alias mount='grc-rs mount'
 or use the `--aliases` option to generate a list. The brave can put this in `~/.bashrc` or `~/.zshrc`, but things may break.
 
 ```sh
-$(eval grc-rs --aliases)
+eval $(grc-rs --aliases)
 ```
