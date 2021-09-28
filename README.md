@@ -26,8 +26,18 @@ Either create shell aliases for the command that you want colourised:
 alias mount='grc-rs mount'
 ```
 
-or use the `--aliases` option to generate a list. The brave can put this in `~/.bashrc` or `~/.zshrc`, but things may break.
+or use the `--aliases` option to generate a list.
+
+The brave can source the generated output directly.
+
+For zsh insert the following into your `~/.zshrc`:
 
 ```sh
 $(eval grc-rs --aliases)
+```
+
+For bash insert the following into your `~/.bashrc`:
+
+```sh
+source <(grc-rs --aliases)
 ```
