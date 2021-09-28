@@ -1,7 +1,7 @@
 use debug_print::debug_println;
 use regex::Regex;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Lines, Write};
+use std::io::{BufRead, BufReader, Lines, Read, Write};
 use std::process::{Command, Stdio};
 use std::str::FromStr;
 
@@ -396,14 +396,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     cmd.args(args);
     cmd.stdout(Stdio::piped());
     let mut child = cmd.spawn().expect("failed to spawn comamnd");
-    let stdout = child
+    let mut stdout = child
         .stdout
         .take()
         .expect("child did not have a handle to stdout");
 
-    let reader = BufReader::new(stdout).lines();
-
-    colourise(reader, &mut std::io::stdout(), &rules)?;
+    colourise(&mut stdout, &mut std::io::stdout(), &rules)?;
 
     Ok(())
 }
@@ -414,14 +412,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// of styles for each character and paint each match until all regexp have been
 /// processed. Then find ranges of same style in this array and wrap the
 /// substrings in console escape codes.
-fn colourise<A: BufRead, W: ?Sized>(
-    reader: Lines<A>,
+fn colourise<R: ?Sized, W: ?Sized>(
+    reader: &mut R,
     writer: &mut W,
     rules: &[GrcatConfigEntry],
 ) -> Result<(), Box<dyn std::error::Error>>
 where
+    R: Read,
     W: Write,
 {
+    let reader = BufReader::new(reader).lines();
     for line in reader {
         let line = line?;
         let mut style_ranges: Vec<(usize, usize, &console::Style)> = Vec::new();
