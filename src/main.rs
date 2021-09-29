@@ -479,3 +479,80 @@ where
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test(
+        input: &str,
+        output: &str,
+        rules: &[GrcatConfigEntry],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut writer = Vec::new();
+        colourise(&mut input.as_bytes(), &mut writer, rules)?;
+        assert_eq!(output, String::from_utf8(writer)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_no_rules() -> Result<(), Box<dyn std::error::Error>> {
+        test("foo\n", "foo\n", &[])?;
+        test("foo\nbar\nbaz\n", "foo\nbar\nbaz\n", &[])?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_simple() -> Result<(), Box<dyn std::error::Error>> {
+        test(
+            "foobarbaz",
+            "foo\x1b[34mbar\x1b[0mbaz\n",
+            &[GrcatConfigEntry {
+                regex: Regex::new("bar")?,
+                colors: [console::Style::new().blue()].to_vec(),
+            }],
+        )
+    }
+
+    #[test]
+    fn test_adjacent() -> Result<(), Box<dyn std::error::Error>> {
+        test(
+            "foobarbarbaz",
+            "foo\x1b[34mbarbar\x1b[0mbaz\n",
+            &[GrcatConfigEntry {
+                regex: Regex::new("bar")?,
+                colors: [console::Style::new().blue()].to_vec(),
+            }],
+        )
+    }
+
+    #[test]
+    fn test_multiple() -> Result<(), Box<dyn std::error::Error>> {
+        test(
+            "foobarbazfoobarbazfoobarbaz",
+            "foo\x1b[34mbar\x1b[0mbazfoo\x1b[34mbar\x1b[0mbazfoo\x1b[34mbar\x1b[0mbaz\n",
+            &[GrcatConfigEntry {
+                regex: Regex::new("bar")?,
+                colors: [console::Style::new().blue()].to_vec(),
+            }],
+        )
+    }
+
+    #[test]
+    fn test_overlap() -> Result<(), Box<dyn std::error::Error>> {
+        test(
+            "foobarbaz",
+            "\x1b[34mfoo\x1b[0m\x1b[31mbarbaz\x1b[0m\n",
+            &[
+                GrcatConfigEntry {
+                    regex: Regex::new("foobar")?,
+                    colors: [console::Style::new().blue()].to_vec(),
+                },
+                GrcatConfigEntry {
+                    regex: Regex::new("barbaz")?,
+                    colors: [console::Style::new().red()].to_vec(),
+                },
+            ],
+        )
+    }
+}
