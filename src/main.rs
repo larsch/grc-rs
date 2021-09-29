@@ -475,7 +475,7 @@ where
         if offset < line.len() {
             write!(writer, "{}", prev_style.apply_to(&line[offset..line.len()]))?;
         }
-        write!(writer, "\n")?;
+        writeln!(writer)?;
     }
     Ok(())
 }
