@@ -1,0 +1,9 @@
+#compdef grc-rs
+_arguments -s -S -A '-*' : \
+  '--aliases[show aliases]' \
+  '--all-aliases[show all aliases]' \
+  '--except[exclude aliases]:except string' \
+  '--help[display help information]' \
+  '--colour=-[colour]:colour:(on off auto)' \
+  '-a+[set argv\[0\] to specified string]:argv[0] string' \
+  '*:: : _normal -p $service'
