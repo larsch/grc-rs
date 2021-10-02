@@ -484,6 +484,7 @@ mod tests {
 
     #[test]
     fn test_no_rules() -> Result<(), Box<dyn std::error::Error>> {
+        console::set_colors_enabled(true);
         test("foo\n", "foo\n", &[])?;
         test("foo\nbar\nbaz\n", "foo\nbar\nbaz\n", &[])?;
         Ok(())
@@ -491,6 +492,7 @@ mod tests {
 
     #[test]
     fn test_simple() -> Result<(), Box<dyn std::error::Error>> {
+        console::set_colors_enabled(true);
         test(
             "foobarbaz",
             "foo\x1b[34mbar\x1b[0mbaz\n",
@@ -503,6 +505,7 @@ mod tests {
 
     #[test]
     fn test_adjacent() -> Result<(), Box<dyn std::error::Error>> {
+        console::set_colors_enabled(true);
         test(
             "foobarbarbaz",
             "foo\x1b[34mbarbar\x1b[0mbaz\n",
@@ -515,6 +518,7 @@ mod tests {
 
     #[test]
     fn test_multiple() -> Result<(), Box<dyn std::error::Error>> {
+        console::set_colors_enabled(true);
         test(
             "foobarbazfoobarbazfoobarbaz",
             "foo\x1b[34mbar\x1b[0mbazfoo\x1b[34mbar\x1b[0mbazfoo\x1b[34mbar\x1b[0mbaz\n",
@@ -527,6 +531,7 @@ mod tests {
 
     #[test]
     fn test_overlap() -> Result<(), Box<dyn std::error::Error>> {
+        console::set_colors_enabled(true);
         test(
             "foobarbaz",
             "\x1b[34mfoo\x1b[0m\x1b[31mbarbaz\x1b[0m\n",
