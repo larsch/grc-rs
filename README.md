@@ -1,3 +1,5 @@
+[![Build Status](https://github.com/larsch/grc-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/larsch/grc-rs/actions/workflows/rust.yml)
+
 # grc-rs
 
 ## Description
