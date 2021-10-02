@@ -1,22 +1,9 @@
 use debug_print::debug_println;
-use regex::Regex;
+use fancy_regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Lines, Read, Write};
 use std::process::{Command, Stdio};
 use std::str::FromStr;
-
-use lazy_static::lazy_static;
-
-/// Attempt to parse a Python regexp (from grc/grcat configuration) into a regex::Regex. These two
-/// a not compatible. Primarly, look-ahead/look-behind, which are used in grc/grcat default
-/// configuration files are not supported by the 'regex' create. Also, some characters are
-/// unecessarily escaped. The kludge here is to remove those escapes. Probably not very robust.
-fn parse_python_regex(text: &str) -> Result<Regex, regex::Error> {
-    lazy_static! {
-        static ref REPL: Regex = regex::Regex::new("\\\\([/:!=_`@\"])").unwrap();
-    }
-    return Regex::new(&REPL.replacen(text, 0, "$1"));
-}
 
 /// 'grc' configuration reader
 struct ConfigReader<A> {
@@ -35,7 +22,7 @@ impl<A: BufRead> ConfigReader<A> {
         for line in &mut self.inner {
             match line {
                 Ok(line2) => {
-                    if !re.is_match(&line2) {
+                    if !re.is_match(&line2).unwrap() {
                         return Some(line2.trim().to_string());
                     }
                 }
@@ -49,12 +36,12 @@ impl<A: BufRead> ConfigReader<A> {
 /// Iterator for ConfigReader that yield the next entry (regex, config) where 'regex' is the
 /// command line regexp and 'config' is the file name of the 'grcat' configuration file.
 impl<A: BufRead> Iterator for ConfigReader<A> {
-    type Item = (regex::Regex, String);
+    type Item = (Regex, String);
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(regexp) = self.next_content_line() {
             if let Some(filename) = self.next_content_line() {
-                if let Ok(re) = parse_python_regex(&regexp) {
+                if let Ok(re) = Regex::new(&regexp) {
                     Some((re, filename))
                 } else {
                     self.next()
@@ -83,7 +70,7 @@ impl<A: BufRead> GrcatConfigReader<A> {
     fn next_alphanumeric(&mut self) -> Option<String> {
         let alphanumeric = Regex::new("^[a-zA-Z0-9]").unwrap();
         for line in (&mut self.inner).flatten() {
-            if alphanumeric.is_match(&line) {
+            if alphanumeric.is_match(&line).unwrap_or(false) {
                 return Some(line.trim().to_string());
             }
         }
@@ -95,7 +82,7 @@ impl<A: BufRead> GrcatConfigReader<A> {
     fn following(&mut self) -> Option<String> {
         let alphanumeric = Regex::new("^[a-zA-Z0-9]").unwrap();
         if let Some(Ok(line)) = self.inner.next() {
-            if alphanumeric.is_match(&line) {
+            if alphanumeric.is_match(&line).unwrap_or(false) {
                 Some(line)
             } else {
                 None
@@ -110,7 +97,7 @@ impl<A: BufRead> GrcatConfigReader<A> {
 /// 'man grcat' for details.
 #[derive(Debug)]
 struct GrcatConfigEntry {
-    regex: regex::Regex,
+    regex: Regex,
     colors: Vec<console::Style>,
 }
 
@@ -130,11 +117,11 @@ impl<A: BufRead> Iterator for GrcatConfigReader<A> {
 
             // Loop over all consecutive alpha-numeric lines
             loop {
-                let cap = re.captures(&ln).unwrap();
+                let cap = re.captures(&ln).unwrap().unwrap();
                 let key = cap.get(1).unwrap().as_str();
                 let value = cap.get(2).unwrap().as_str();
                 match key {
-                    "regexp" => match parse_python_regex(value) {
+                    "regexp" => match Regex::new(value) {
                         Ok(re) => {
                             regex = Some(re);
                         }
@@ -378,7 +365,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let f = File::open("/etc/grc.conf")?;
     let br = std::io::BufReader::new(f);
     let mut cr = ConfigReader::new(br.lines());
-    let config = cr.find(|(re, _config)| re.is_match(&pseudo_command));
+    let config = cr.find(|(re, _config)| re.is_match(&pseudo_command).unwrap_or(false));
     let rules: Vec<GrcatConfigEntry> = if let Some((_, config)) = config {
         let filename = format!("/usr/share/grc/{}", config);
         let f2 = File::open(filename)?;
@@ -426,10 +413,11 @@ where
         for rule in rules {
             let mut offset = 0;
             while offset < line.len() {
-                let mut locs = rule.regex.capture_locations();
-                if let Some(maybe_match) = rule.regex.captures_read_at(&mut locs, &line, offset) {
-                    for i in 0..locs.len() {
-                        if let Some((start, end)) = locs.get(i) {
+                if let Ok(Some(matches)) = rule.regex.captures_from_pos(&line, offset) {
+                    for (i, mmatch) in matches.iter().enumerate() {
+                        if let Some(mmatch) = mmatch {
+                            let start = mmatch.start();
+                            let end = mmatch.end();
                             if i < rule.colors.len() {
                                 let style = &rule.colors[i];
                                 let range = (start, end, style);
@@ -437,6 +425,7 @@ where
                             }
                         }
                     }
+                    let maybe_match = matches.get(0).unwrap();
                     if maybe_match.end() > maybe_match.start() {
                         offset = maybe_match.end();
                     } else {
