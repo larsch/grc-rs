@@ -10,6 +10,28 @@ rust). `grc` must be installed as its configuration files are used.
 Colouring rules work as good as 'grc'. Replacement/skip/count not yet
 implemented.
 
+## Installation
+
+Installation via cargo will give you the binary, but not the man page and `zsh`
+shell completion script.
+
+```sh
+cargo install grc-rs
+```
+
+From AUR:
+
+```sh
+yay -S grc-rs
+```
+
+Or manually, which will also install man page and zsh completions:
+
+```sh
+cargo build --release
+sudo make install
+```
+
 ## Usage
 
 Either create shell aliases for the command that you want colourised:
