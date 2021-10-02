@@ -82,11 +82,9 @@ impl<A: BufRead> GrcatConfigReader<A> {
     /// Get the next alpha-numeric line (any non-alphanumeric line are ignored in grcat).
     fn next_alphanumeric(&mut self) -> Option<String> {
         let alphanumeric = Regex::new("^[a-zA-Z0-9]").unwrap();
-        for line in &mut self.inner {
-            if let Ok(line) = line {
-                if alphanumeric.is_match(&line) {
-                    return Some(line.trim().to_string());
-                }
+        for line in (&mut self.inner).flatten() {
+            if alphanumeric.is_match(&line) {
+                return Some(line.trim().to_string());
             }
         }
         None
@@ -212,7 +210,7 @@ fn style_from_str(text: &str) -> Result<console::Style, ()> {
 
 /// Convert a grcat 'colours' comma-separated option string into a vector of styles.
 fn styles_from_str(text: &str) -> Result<Vec<console::Style>, ()> {
-    text.split(',').map(|e| Ok(style_from_str(e)?)).collect()
+    text.split(',').map(|e| style_from_str(e)).collect()
 }
 
 enum ColourMode {
