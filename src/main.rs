@@ -258,12 +258,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ap.parse_args_or_exit();
     }
 
-    let except_aliases: Vec<&str> = except_aliases
-        .iter()
-        .map(|s| s.split(','))
-        .flatten()
-        .collect();
-
     if show_aliases || show_all_aliases {
         let grc = std::env::current_exe().unwrap();
         let grc = grc.display();
@@ -340,7 +334,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "go",
             "iostat",
         ] {
-            if !except_aliases.contains(cmd) && (show_all_aliases || which::which(cmd).is_ok()) {
+            let mut except_aliases = except_aliases.iter().map(|s| s.split(',')).flatten();
+            if !except_aliases.any(|s| s == *cmd) && (show_all_aliases || which::which(cmd).is_ok())
+            {
                 println!("alias {}='{} {}';", cmd, grc, cmd);
             }
         }
