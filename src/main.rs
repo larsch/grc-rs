@@ -143,7 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "docker",
             "go",
             "iostat",
-            "lsusb"
+            "lsusb",
         ] {
             let mut except_aliases = except_aliases.iter().map(|s| s.split(',')).flatten();
             if !except_aliases.any(|s| s == *cmd) && (show_all_aliases || which::which(cmd).is_ok())
