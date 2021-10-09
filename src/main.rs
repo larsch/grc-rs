@@ -33,8 +33,9 @@ impl<A: BufRead> ConfigReader<A> {
     }
 }
 
-/// Iterator for ConfigReader that yield the next entry (regex, config) where 'regex' is the
-/// command line regexp and 'config' is the file name of the 'grcat' configuration file.
+/// Iterator for ConfigReader that yield the next entry (regex, config) where
+/// 'regex' is the command line regexp and 'config' is the file name of the
+/// 'grcat' configuration file.
 impl<A: BufRead> Iterator for ConfigReader<A> {
     type Item = (Regex, String);
 
@@ -66,7 +67,8 @@ impl<A: BufRead> GrcatConfigReader<A> {
         GrcatConfigReader { inner }
     }
 
-    /// Get the next alpha-numeric line (any non-alphanumeric line are ignored in grcat).
+    /// Get the next alpha-numeric line (any non-alphanumeric line are ignored
+    /// in grcat).
     fn next_alphanumeric(&mut self) -> Option<String> {
         let alphanumeric = Regex::new("^[a-zA-Z0-9]").unwrap();
         for line in (&mut self.inner).flatten() {
@@ -77,8 +79,8 @@ impl<A: BufRead> GrcatConfigReader<A> {
         None
     }
 
-    /// Get the following alpha-numeric line, or None if next line is to be ignored and signifies
-    /// the end of the configuration entry.
+    /// Get the following alpha-numeric line, or None if next line is to be
+    /// ignored and signifies the end of the configuration entry.
     fn following(&mut self) -> Option<String> {
         let alphanumeric = Regex::new("^[a-zA-Z0-9]").unwrap();
         if let Some(Ok(line)) = self.inner.next() {
@@ -93,8 +95,8 @@ impl<A: BufRead> GrcatConfigReader<A> {
     }
 }
 
-/// A 'grcat' configuration entry consisting of a matching regexp and set of optional options. See
-/// 'man grcat' for details.
+/// A 'grcat' configuration entry consisting of a matching regexp and set of
+/// optional options. See 'man grcat' for details.
 #[derive(Debug)]
 struct GrcatConfigEntry {
     regex: Regex,
@@ -104,9 +106,10 @@ struct GrcatConfigEntry {
 impl<A: BufRead> Iterator for GrcatConfigReader<A> {
     type Item = GrcatConfigEntry;
 
-    /// Advances the iterator and returns the next GrcatConfigEntry. The definition of the
-    /// configuration file format in 'man grcat' says that consecutive lines starting with an
-    /// alphanumeric character are entries and anything else is ignored.
+    /// Advances the iterator and returns the next GrcatConfigEntry. The
+    /// definition of the configuration file format in 'man grcat' says that
+    /// consecutive lines starting with an alphanumeric character are entries
+    /// and anything else is ignored.
     fn next(&mut self) -> Option<Self::Item> {
         let re = Regex::new("^([a-z_]+)\\s*=\\s*(.*)$").unwrap();
         let mut ln: String;
@@ -153,7 +156,8 @@ impl<A: BufRead> Iterator for GrcatConfigReader<A> {
     }
 }
 
-/// Convert a grcat 'colours' option string element into a corresponding 'console::Style' value.
+/// Convert a grcat 'colours' option string element into a corresponding
+/// 'console::Style' value.
 fn style_from_str(text: &str) -> Result<console::Style, ()> {
     text.split(' ')
         .try_fold(console::Style::new(), |style, word| match word {
@@ -195,7 +199,8 @@ fn style_from_str(text: &str) -> Result<console::Style, ()> {
         })
 }
 
-/// Convert a grcat 'colours' comma-separated option string into a vector of styles.
+/// Convert a grcat 'colours' comma-separated option string into a vector of
+/// styles.
 fn styles_from_str(text: &str) -> Result<Vec<console::Style>, ()> {
     text.split(',').map(|e| style_from_str(e)).collect()
 }
