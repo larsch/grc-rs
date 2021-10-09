@@ -48,3 +48,16 @@ or use the `--aliases` option to generate a list. The brave can put this in
 ```sh
 eval $(grc-rs --aliases)
 ```
+
+## Configuration
+
+Configuration files are in same format as `grc`/`grcat`. **grc-rs** supports
+reading from additional configuration, `/etc/grc-rs.conf`, `~/.grc-rs`, and
+`~/.config/grc-rs/grc-rs`. Colouring rules will be searched for in additional
+paths `/usr/share/grc-rs`, `~/.config/grc-rs` and `~/.local/share/grc-rs`.
+
+To extend the existing configuration for a command that is already configured,
+simply add a new rule in `~/.config/grc-rs/grc-rs` and have a unique
+`conf.command`. To replace existing rules for a known command, create
+`~/.config/grc-rs/conf.command` and it will be used instead of the one from
+`/usr/share/grc`.

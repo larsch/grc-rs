@@ -1,6 +1,7 @@
 mod colourise;
 mod grc;
 
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::BufRead;
 use std::process::{Command, Stdio};
@@ -142,6 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "docker",
             "go",
             "iostat",
+            "lsusb"
         ] {
             let mut except_aliases = except_aliases.iter().map(|s| s.split(',')).flatten();
             if !except_aliases.any(|s| s == *cmd) && (show_all_aliases || which::which(cmd).is_ok())
@@ -167,19 +169,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if pseudo_command.is_empty() {}
 
-    let f = File::open("/etc/grc.conf")?;
-    let br = std::io::BufReader::new(f);
-    let mut cr = GrcConfigReader::new(br.lines());
-    let config = cr.find(|(re, _config)| re.is_match(&pseudo_command).unwrap_or(false));
-    let rules: Vec<GrcatConfigEntry> = if let Some((_, config)) = config {
-        let filename = format!("/usr/share/grc/{}", config);
-        let f2 = File::open(filename)?;
-        let br = std::io::BufReader::new(f2);
-        let cr = GrcatConfigReader::new(br.lines());
-        cr.collect()
-    } else {
-        Vec::default()
-    };
+    // Configuration file paths
+    let config_paths = [
+        "/etc/grc.conf",
+        "~/.grc",
+        "~/.config/grc/grc",
+        "/etc/grc-rs.conf",
+        "~/.grc-rs",
+        "~/.config/grc-rs/grc-rs",
+    ];
+
+    let rules: Vec<GrcatConfigEntry> = config_paths
+        .map(shellexpand::tilde)
+        .map(|s| load_config(&s, &pseudo_command))
+        .iter()
+        .flatten()
+        .cloned()
+        .collect();
 
     let mut args = command.iter();
     let mut cmd = Command::new(args.next().unwrap());
@@ -194,4 +200,48 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     colourise(&mut stdout, &mut std::io::stdout(), &rules)?;
 
     Ok(())
+}
+
+fn load_config(path: &str, pseudo_command: &str) -> Vec<GrcatConfigEntry> {
+    // Paths where we search for for conf.<command>. Search user files first.
+    let resource_paths = [
+        "~/.config/grc",
+        "~/.config/grc-rs",
+        "~/.local/share/grc-rs",
+        "~/.local/share/grc",
+        "/usr/share/grc-rs",
+        "/usr/share/grc",
+    ];
+
+    if let Ok(f) = File::open(path) {
+        let bufreader = std::io::BufReader::new(f);
+        let mut configreader = GrcConfigReader::new(bufreader.lines());
+        let config =
+            configreader.find(|(re, _config)| re.is_match(pseudo_command).unwrap_or(false));
+        if let Some((_, config)) = config {
+            let to_path = |path: Cow<str>| path.into_owned() + "/" + &config;
+            resource_paths
+                .map(shellexpand::tilde)
+                .map(to_path)
+                .map(load_grcat_config)
+                .iter()
+                .flatten()
+                .cloned()
+                .collect()
+        } else {
+            Vec::default()
+        }
+    } else {
+        Vec::default()
+    }
+}
+
+fn load_grcat_config<T: AsRef<str>>(filename: T) -> Vec<GrcatConfigEntry> {
+    if let Ok(grcat_config_file) = File::open(filename.as_ref()) {
+        let bufreader = std::io::BufReader::new(grcat_config_file);
+        let configreader = GrcatConfigReader::new(bufreader.lines());
+        configreader.collect()
+    } else {
+        Vec::default()
+    }
 }

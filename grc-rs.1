@@ -24,7 +24,8 @@ configuration files.
 Show summary of options.
 .TP
 .B \-\-aliases
-Output a list of shell commands to generate aliases for supported and installed binaries.
+Output a list of shell commands to generate aliases for supported and installed
+binaries.
 .TP
 .B \-\-all-aliases
 Output a list of shell commands with aliases for all supported binaries.
@@ -37,6 +38,35 @@ or
 .TP
 .B \-\-colour=\fR[\fI\,on,off,auto\fR]
 Enable/disable colour output (default auto).
+
+.SH CONFIGURATION FILES
+.B grc-rs
+reads its configuration from all of the following locations (same format as
+\fBgrc-rs.conf\fR), if available. All matching rules are read and used.
+
+    /etc/grc.conf
+    ~/.grc
+    ~/.config/grc/grc
+    /etc/grc-rs.conf
+    ~/.grc-rs
+    ~/.config/grc-rs/grc-rs
+
+Any \fBgrcat\fR configuration (e.g. \fBconf.\fIxyz\fR) are searched for in all
+of these locations. Only the first found file is read and used.
+
+    ~/.config/grc
+    ~/.config/grc-rs
+    ~/.local/share/grc-rs
+    ~/.local/share/grc
+    /usr/share/grc-rs
+    /usr/share/grc
+
+To extend the existing configuration for a command that is already configured,
+simply add a new rule in \fB~/.grc-rs\fR and have a unique
+\fBconf.\fIcommand\fR. To replace existing rules for a known command, create
+\fB~/.config/grc-rs/conf.\fIcommand\fR and it will be used instead of the one
+from \fB/usr/share/grc\fR.
+
 
 .SH SEE ALSO
 .BR grc "(1)

@@ -144,7 +144,7 @@ impl<A: BufRead> GrcatConfigReader<A> {
 
 /// A 'grcat' configuration entry consisting of a matching regexp and set of
 /// optional options. See 'man grcat' for details.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GrcatConfigEntry {
     pub regex: Regex,
     pub colors: Vec<console::Style>,
