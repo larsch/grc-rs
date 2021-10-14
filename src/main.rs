@@ -1,7 +1,6 @@
 mod colourise;
 mod grc;
 
-use std::borrow::Cow;
 use std::fs::File;
 use std::io::BufRead;
 use std::process::{Command, Stdio};
@@ -219,10 +218,9 @@ fn load_config(path: &str, pseudo_command: &str) -> Vec<GrcatConfigEntry> {
         let config =
             configreader.find(|(re, _config)| re.is_match(pseudo_command).unwrap_or(false));
         if let Some((_, config)) = config {
-            let to_path = |path: Cow<str>| path.into_owned() + "/" + &config;
             resource_paths
                 .map(shellexpand::tilde)
-                .map(to_path)
+                .map(|path| path.into_owned() + "/" + &config)
                 .map(load_grcat_config)
                 .iter()
                 .flatten()
