@@ -204,7 +204,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         colourise(&mut stdout, &mut std::io::stdout(), &rules)?;
     }
 
-    Ok(())
+    let ecode = child.wait().expect("failed to wait on child");
+    std::process::exit(ecode.code().expect("need an exit code"));
 }
 
 fn load_config(path: &str, pseudo_command: &str) -> Vec<GrcatConfigEntry> {
