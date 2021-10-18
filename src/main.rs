@@ -189,14 +189,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = command.iter();
     let mut cmd = Command::new(args.next().unwrap());
     cmd.args(args);
-    cmd.stdout(Stdio::piped());
-    let mut child = cmd.spawn().expect("failed to spawn comamnd");
-    let mut stdout = child
-        .stdout
-        .take()
-        .expect("child did not have a handle to stdout");
 
-    colourise(&mut stdout, &mut std::io::stdout(), &rules)?;
+    if !rules.is_empty() {
+        cmd.stdout(Stdio::piped());
+    }
+
+    let mut child = cmd.spawn().expect("failed to spawn comamnd");
+
+    if !rules.is_empty() {
+        let mut stdout = child
+            .stdout
+            .take()
+            .expect("child did not have a handle to stdout");
+        colourise(&mut stdout, &mut std::io::stdout(), &rules)?;
+    }
 
     Ok(())
 }
