@@ -217,6 +217,7 @@ fn load_config(path: &str, pseudo_command: &str) -> Vec<GrcatConfigEntry> {
         "~/.local/share/grc",
         "/usr/share/grc-rs",
         "/usr/share/grc",
+        "/opt/homebrew/share/grc",
     ];
 
     if let Ok(f) = File::open(path) {
